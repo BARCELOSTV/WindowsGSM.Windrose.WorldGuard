@@ -1,0 +1,615 @@
+WINDOWSGSM WINDROSE WORLDGUARD v2.4.0
+COMPATIBILIDADE COM SERVIDORES LEGADOS MIGRADOS
+GUIA DETALHADO - PORTUGUÊS DO BRASIL
+
+Created by BARCELOSTV: 
+https://www.youtube.com/@BARCELOSTV_OFICIAL/videos
+https://www.twitch.tv/barcelostv
+https://steamcommunity.com/id/BARCELOSTV/  
+
+======================================================================
+1. OBJETIVO DESTE DOCUMENTO
+======================================================================
+
+Este documento explica como o plugin WindowsGSM Windrose WorldGuard v2.4.0
+se comporta com servidores Windrose antigos/legados que foram migrados para
+o WindowsGSM.
+
+O objetivo principal do plugin é permitir que um servidor antigo seja
+gerenciado pelo WindowsGSM sem perder:
+
+- o mundo existente;
+- o progresso dos jogadores;
+- a identidade do servidor;
+- o WorldIslandId;
+- o islandId do mundo;
+- o PersistentServerId;
+- o InviteCode;
+- os arquivos de save;
+- a estrutura original do mundo.
+
+O plugin também permite alterar opções do WindowsGSM, como nome amigável do
+mapa/mundo, portas e IP, sem trocar o mundo físico ou criar um novo save.
+
+======================================================================
+2. SIM, SERVIDORES LEGADOS SÃO SUPORTADOS
+======================================================================
+
+A versão 2.4.0 do plugin foi preparada para trabalhar com os dois principais
+formatos de banco/saves encontrados no Windrose:
+
+1. Formato atual:
+   R5\Saved\SaveProfiles\Default\RocksDB_v2\
+
+2. Formato legado:
+   R5\Saved\SaveProfiles\Default\RocksDB\
+
+O plugin procura o mundo ativo nesses dois locais.
+
+IMPORTANTE:
+Pastas de backup, como:
+
+RocksDB_v2_Backups
+
+não são tratadas automaticamente como mundos ativos.
+
+Isso evita que um backup antigo seja confundido com o mundo que deve ser
+iniciado.
+
+======================================================================
+3. ARQUIVOS QUE DEVEM SER PRESERVADOS NA MIGRAÇÃO
+======================================================================
+
+Para uma migração segura de um servidor legado, copie os seguintes itens do
+servidor antigo:
+
+1. Arquivo de identidade/configuração:
+
+R5\ServerDescription.json
+
+2. Toda a pasta de saves:
+
+R5\Saved\
+
+A recomendação é copiar a pasta Saved inteira, e não apenas uma pasta de
+Worlds específica.
+
+Exemplo de origem:
+
+D:\OLD_WINDROSE_SERVER\
+└── R5\
+    ├── ServerDescription.json
+    └── Saved\
+
+Destino no WindowsGSM:
+
+D:\SERVIDORES\WINDOWSGSM\
+└── servers\
+    └── <SERVER_ID>\
+        └── serverfiles\
+            └── R5\
+                ├── ServerDescription.json
+                └── Saved\
+
+Substitua <SERVER_ID> pelo ID real do servidor criado pelo WindowsGSM.
+
+======================================================================
+4. IDENTIDADE DO SERVIDOR E DO MUNDO
+======================================================================
+
+Os seguintes valores são críticos:
+
+PersistentServerId
+WorldIslandId
+InviteCode
+islandId
+
+Eles não devem ser alterados sem intenção.
+
+--------------------------------------------------
+4.1 PersistentServerId
+--------------------------------------------------
+
+Fica em:
+
+R5\ServerDescription.json
+
+Ele identifica o servidor persistente.
+
+Em uma migração de um servidor antigo, preserve o valor original.
+
+--------------------------------------------------
+4.2 InviteCode
+--------------------------------------------------
+
+Também fica em:
+
+R5\ServerDescription.json
+
+Preservar o arquivo original normalmente mantém o código de convite e a
+identidade de conexão do servidor.
+
+--------------------------------------------------
+4.3 WorldIslandId
+--------------------------------------------------
+
+Fica em:
+
+R5\ServerDescription.json
+
+Exemplo:
+
+"WorldIslandId": "E17BEDA81D474B4442824383E2CA9557"
+
+Esse valor indica qual mundo o servidor deve carregar.
+
+--------------------------------------------------
+4.4 islandId
+--------------------------------------------------
+
+Fica no arquivo:
+
+WorldDescription.json
+
+No Windrose atual o campo é:
+
+"islandId"
+
+com "i" minúsculo.
+
+Exemplo:
+
+"islandId": "E17BEDA81D474B4442824383E2CA9557"
+
+O valor deve corresponder ao ID da pasta do mundo.
+
+======================================================================
+5. ESTRUTURA TÍPICA DE UM SERVIDOR LEGADO
+======================================================================
+
+Formato legado:
+
+R5\
+├── ServerDescription.json
+└── Saved\
+    └── SaveProfiles\
+        └── Default\
+            └── RocksDB\
+                └── <GAME_VERSION>\
+                    └── Worlds\
+                        └── <WORLD_ID>\
+                            └── WorldDescription.json
+
+Exemplo:
+
+R5\Saved\SaveProfiles\Default\
+RocksDB\
+0.10.0\
+Worlds\
+E17BEDA81D474B4442824383E2CA9557\
+WorldDescription.json
+
+O nome da pasta:
+
+E17BEDA81D474B4442824383E2CA9557
+
+deve corresponder a:
+
+ServerDescription.json:
+WorldIslandId
+
+e a:
+
+WorldDescription.json:
+islandId
+
+======================================================================
+6. ESTRUTURA TÍPICA NO FORMATO ATUAL
+======================================================================
+
+Formato atual:
+
+R5\
+├── ServerDescription.json
+└── Saved\
+    └── SaveProfiles\
+        └── Default\
+            └── RocksDB_v2\
+                └── <GAME_VERSION>\
+                    └── Worlds\
+                        └── <WORLD_ID>\
+                            └── WorldDescription.json
+
+A lógica de identidade é a mesma.
+
+======================================================================
+7. COMO O WORLDGUARD VALIDA UM SERVIDOR MIGRADO
+======================================================================
+
+Antes de iniciar o Windrose, o plugin:
+
+1. lê R5\ServerDescription.json;
+2. obtém PersistentServerId;
+3. obtém InviteCode;
+4. obtém WorldIslandId;
+5. procura o mundo em RocksDB_v2;
+6. se não encontrar, procura em RocksDB;
+7. abre WorldDescription.json;
+8. lê islandId;
+9. compara islandId com o nome da pasta do mundo;
+10. compara o mundo encontrado com WorldIslandId;
+11. cria ou valida WindowsGSM_Windrose_State.json;
+12. somente depois permite a inicialização.
+
+Se houver inconsistência, o servidor é bloqueado antes do Windrose criar um
+mundo novo por engano.
+
+======================================================================
+8. ARQUIVO WORLDGUARD
+======================================================================
+
+O plugin cria:
+
+WindowsGSM_Windrose_State.json
+
+Normalmente em:
+
+<WindowsGSM>\servers\<SERVER_ID>\serverfiles\
+WindowsGSM_Windrose_State.json
+
+Ele guarda a identidade protegida do servidor.
+
+Exemplo:
+
+{
+  "Version": 1,
+  "Locked": true,
+  "PersistentServerId": "...",
+  "InviteCode": "...",
+  "WorldIslandId": "...",
+  "FirstLockedUtc": "...",
+  "LastValidatedUtc": "..."
+}
+
+Esse arquivo ajuda a impedir alterações acidentais de identidade.
+
+======================================================================
+9. ALTERAÇÃO DO NOME DO MAPA NO WINDOWSGSM
+======================================================================
+
+Na versão 2.4.0, o campo:
+
+Server Start Map
+
+do WindowsGSM funciona como NOME AMIGÁVEL do mundo.
+
+Exemplo:
+
+Server Start Map:
+DELTA
+
+O plugin atualiza:
+
+WorldDescription.json
+
+no campo:
+
+"WorldName": "DELTA"
+
+IMPORTANTE:
+
+Isso NÃO altera:
+
+WorldIslandId
+islandId
+PersistentServerId
+InviteCode
+nome da pasta Worlds\<WORLD_ID>\
+arquivos físicos do save
+
+Ou seja:
+
+Servidor antes:
+WorldId = E17BEDA81D474B4442824383E2CA9557
+WorldName = OLD NAME
+
+Você muda no WindowsGSM:
+
+Server Start Map = DELTA
+
+Resultado:
+
+WorldId = E17BEDA81D474B4442824383E2CA9557
+WorldName = DELTA
+
+O save continua exatamente no mesmo local.
+
+======================================================================
+10. R5WORLDDESCRIPTIONUPDATER.EXE
+======================================================================
+
+Em servidores no formato atual RocksDB_v2, alterações em WorldDescription.json
+precisam ser aplicadas ao banco.
+
+Por isso, ao alterar WorldName, o plugin usa:
+
+R5WorldDescriptionUpdater.exe
+
+O plugin procura o executável em locais conhecidos, como:
+
+<serverfiles>\R5WorldDescriptionUpdater.exe
+
+ou:
+
+<serverfiles>\R5\R5WorldDescriptionUpdater.exe
+
+ou:
+
+<serverfiles>\R5\Binaries\Win64\R5WorldDescriptionUpdater.exe
+
+Se o updater falhar:
+
+- o plugin bloqueia a inicialização;
+- tenta restaurar o WorldDescription.json anterior;
+- registra o erro no log.
+
+Em RocksDB legado, o plugin não força o mesmo fluxo quando ele não é necessário.
+
+======================================================================
+11. ALTERAÇÃO DE IP
+======================================================================
+
+Alterar:
+
+Server IP Address
+
+no WindowsGSM não altera o mundo.
+
+Pode afetar apenas:
+
+- interface de rede;
+- bind;
+- conexão direta;
+- firewall;
+- roteamento;
+- port forwarding.
+
+Não deve alterar:
+
+WorldIslandId
+islandId
+PersistentServerId
+InviteCode
+save
+
+======================================================================
+12. ALTERAÇÃO DE PORTA
+======================================================================
+
+Alterar:
+
+Server Port
+
+não troca o mundo.
+
+Quando:
+
+-wr-direct true
+
+está ativo, o plugin usa a porta configurada para:
+
+DirectConnectionServerPort
+
+Ela deve estar liberada em:
+
+TCP
+UDP
+
+Quando:
+
+-wr-direct false
+
+o Windrose normalmente utiliza seu mecanismo de NAT punch-through/relay e a
+porta do WindowsGSM não é responsável pela identidade do mundo.
+
+======================================================================
+13. QUERY PORT
+======================================================================
+
+O Windrose não usa um sistema A2S tradicional como vários servidores Steam.
+
+Portanto, o campo:
+
+Server Query Port
+
+não seleciona o mundo e não altera o save.
+
+Ele permanece principalmente por compatibilidade com a interface do
+WindowsGSM.
+
+======================================================================
+14. MUDANÇA INTENCIONAL DE MUNDO
+======================================================================
+
+Alterar apenas:
+
+Server Start Map
+
+NÃO muda de mundo.
+
+Para trocar intencionalmente para outro mundo existente, use:
+
+-wr-adopt-world <WORLD_ID>
+
+Exemplo:
+
+-wr-adopt-world E17BEDA81D474B4442824383E2CA9557
+
+O plugin verifica se o mundo existe antes de alterar o lock.
+
+Depois da troca bem-sucedida, remova o parâmetro do campo Additional
+Parameters.
+
+======================================================================
+15. O QUE NÃO DEVE SER FEITO
+======================================================================
+
+Não faça os seguintes procedimentos sem backup:
+
+- renomear a pasta Worlds\<WORLD_ID>;
+- alterar manualmente WorldIslandId;
+- alterar manualmente islandId;
+- apagar ServerDescription.json;
+- copiar apenas uma parte do RocksDB enquanto o servidor está rodando;
+- executar dois servidores usando o mesmo banco de save;
+- apagar WindowsGSM_Windrose_State.json apenas para contornar um erro;
+- copiar save enquanto Windrose está em execução.
+
+======================================================================
+16. PROCEDIMENTO RECOMENDADO PARA MIGRAÇÃO LEGADA
+======================================================================
+
+1. Pare o servidor antigo.
+
+2. Pare o servidor Windrose no WindowsGSM.
+
+3. Confirme que não existem processos ativos:
+
+WindroseServer.exe
+WindroseServer-Win64-Shipping.exe
+
+4. Faça backup completo do servidor antigo.
+
+5. Instale o Windrose pelo WindowsGSM.
+
+6. NÃO inicie o servidor novo antes da migração.
+
+7. Copie:
+
+R5\Saved\
+
+do servidor antigo para:
+
+<WindowsGSM>\servers\<SERVER_ID>\serverfiles\R5\Saved\
+
+8. Copie:
+
+R5\ServerDescription.json
+
+do servidor antigo para:
+
+<WindowsGSM>\servers\<SERVER_ID>\serverfiles\R5\ServerDescription.json
+
+9. Se essa instância do WindowsGSM já foi usada anteriormente com outro
+servidor/mundo, remova somente o estado antigo do plugin:
+
+WindowsGSM_Windrose_State.json
+
+ATENÇÃO:
+Só faça isso quando estiver deliberadamente importando outro servidor.
+
+10. Inicie pelo WindowsGSM.
+
+11. O plugin deve detectar e adotar a identidade do servidor migrado.
+
+12. Depois, faça Stop e Start novamente para confirmar persistência.
+
+======================================================================
+17. TESTE DE VALIDAÇÃO APÓS A MIGRAÇÃO
+======================================================================
+
+Após a primeira inicialização migrada:
+
+1. entre no servidor;
+2. confirme que o mundo e progresso são os esperados;
+3. pare o servidor;
+4. inicie novamente;
+5. confirme que o mesmo mundo foi carregado;
+6. altere somente o Server Start Map;
+7. inicie novamente;
+8. confirme que:
+   - o nome mudou;
+   - o progresso permaneceu;
+   - WorldIslandId permaneceu igual;
+   - islandId permaneceu igual;
+   - a pasta do mundo permaneceu igual.
+
+Depois:
+
+9. teste alteração de porta;
+10. teste alteração de IP, se necessário;
+11. reinicie novamente.
+
+Nenhuma dessas alterações administrativas deve criar um novo mundo.
+
+======================================================================
+18. LOG DO PLUGIN
+======================================================================
+
+O log fica em:
+
+<WindowsGSM>\servers\<SERVER_ID>\serverfiles\
+WindowsGSM_Windrose.log
+
+Use esse arquivo para diagnosticar:
+
+- mundo não encontrado;
+- islandId incorreto;
+- WorldIslandId vazio;
+- conflito de identidade;
+- updater ausente;
+- falha de WorldName;
+- problemas de recuperação;
+- start bloqueado pelo WorldGuard.
+
+======================================================================
+19. BACKUPS DO PLUGIN
+======================================================================
+
+O plugin cria pequenos backups de configuração em:
+
+<WindowsGSM>\servers\<SERVER_ID>\serverfiles\
+WindowsGSM_Windrose_Backups\
+
+Eles podem incluir:
+
+ServerDescription.json
+WindowsGSM_Windrose_State.json
+WorldDescription.json
+
+Esses backups não substituem um backup completo de:
+
+R5\Saved\
+
+======================================================================
+20. RESUMO
+======================================================================
+
+SIM, a versão 2.4.0 foi projetada para funcionar com servidores legados
+migrados para o WindowsGSM.
+
+A condição principal é preservar corretamente:
+
+R5\ServerDescription.json
+R5\Saved\
+
+O plugin aceita mundos em:
+
+RocksDB_v2
+RocksDB
+
+A alteração de nome no WindowsGSM modifica apenas:
+
+WorldName
+
+A alteração de IP/porta não modifica a identidade do mundo.
+
+A identidade real continua baseada em:
+
+PersistentServerId
+WorldIslandId
+islandId
+Worlds\<WORLD_ID>\
+
+Sempre mantenha backup completo antes de migrar ou alterar manualmente arquivos
+de save.
