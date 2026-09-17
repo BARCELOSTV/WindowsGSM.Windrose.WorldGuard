@@ -1,4 +1,4 @@
-WINDOWSGSM WINDROSE WORLDGUARD v2.4.0
+WINDOWSGSM WINDROSE WORLDGUARD v2.4.1
 COMPATIBILIDADE COM SERVIDORES LEGADOS MIGRADOS
 GUIA DETALHADO - PORTUGUÊS DO BRASIL
 
@@ -11,7 +11,7 @@ https://steamcommunity.com/id/BARCELOSTV/
 1. OBJETIVO DESTE DOCUMENTO
 ======================================================================
 
-Este documento explica como o plugin WindowsGSM Windrose WorldGuard v2.4.0
+Este documento explica como o plugin WindowsGSM Windrose WorldGuard v2.4.1
 se comporta com servidores Windrose antigos/legados que foram migrados para
 o WindowsGSM.
 
@@ -35,7 +35,7 @@ mapa/mundo, portas e IP, sem trocar o mundo físico ou criar um novo save.
 2. SIM, SERVIDORES LEGADOS SÃO SUPORTADOS
 ======================================================================
 
-A versão 2.4.0 do plugin foi preparada para trabalhar com os dois principais
+A versão 2.4.1 do plugin foi preparada para trabalhar com os dois principais
 formatos de banco/saves encontrados no Windrose:
 
 1. Formato atual:
@@ -277,7 +277,7 @@ Esse arquivo ajuda a impedir alterações acidentais de identidade.
 9. ALTERAÇÃO DO NOME DO MAPA NO WINDOWSGSM
 ======================================================================
 
-Na versão 2.4.0, o campo:
+Na versão 2.4.1, o campo:
 
 Server Start Map
 
@@ -392,13 +392,13 @@ Server Port
 
 não troca o mundo.
 
-Quando:
-
--wr-direct true
-
-está ativo, o plugin usa a porta configurada para:
+O plugin armazena a porta Server Port do WindowsGSM em:
 
 DirectConnectionServerPort
+
+independentemente do modo de conexão atual. Isso não ativa IP direto por si só.
+
+Use `-wr-connection direct` (ou o alias legado `-wr-direct true`) para selecionar explicitamente IP direto
 
 Ela deve estar liberada em:
 
@@ -581,11 +581,29 @@ Esses backups não substituem um backup completo de:
 
 R5\Saved\
 
+
+======================================================================
+NOTA DE REDE / STOP DA V2.4.1
+======================================================================
+
+A versão 2.4.1 preserva o valor UseDirectConnection existente quando nenhum
+parâmetro explícito de conexão é informado. Configurações novas/incompletas
+inicializam no modo por código. Use -wr-connection invite|direct para forçar
+um modo explicitamente.
+
+O STOP do WindowsGSM usa primeiro a Console API nativa do Windows para permitir
+que o Windrose execute seu próprio fluxo de encerramento/backup antes de qualquer
+terminação forçada.
+
+Admin / RCON: The official Windrose Dedicated Server, in its currently documented
+version, does not provide a documented native administrator or RCON configuration.
+Features of this type require third-party tools or mods.
+
 ======================================================================
 20. RESUMO
 ======================================================================
 
-SIM, a versão 2.4.0 foi projetada para funcionar com servidores legados
+SIM, a versão 2.4.1 foi projetada para funcionar com servidores legados
 migrados para o WindowsGSM.
 
 A condição principal é preservar corretamente:
