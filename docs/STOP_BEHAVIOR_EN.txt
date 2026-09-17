@@ -1,0 +1,81 @@
+WINDOWSGSM WINDROSE WORLDGUARD v2.4.1
+STOP / SHUTDOWN BEHAVIOR
+
+======================================================================
+1. WHY NATIVE CONSOLE STOP IS USED
+======================================================================
+
+In the tested WindowsGSM v1.23.1 environment, Windrose may run without a usable
+`MainWindowHandle`. A pure `CloseMainWindow()` or HWND-based CTRL+C approach can therefore
+fail even though the server itself is healthy.
+
+WorldGuard v2.4.1 resolves the serverfiles directory from the running process and uses
+the native Windows Console API as its primary graceful-stop mechanism.
+
+======================================================================
+2. SHUTDOWN ORDER
+======================================================================
+
+1. Resolve the Windrose PID.
+2. `AttachConsole(PID)`.
+3. Temporarily ignore CTRL+C in the WindowsGSM sender.
+4. `GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)`.
+5. Detach from the Windrose console.
+6. Wait up to 20 seconds for the server process to exit.
+7. Try `CloseMainWindow()` only as a compatibility fallback.
+8. Use `Process.Kill()` only as the FINAL fallback.
+
+The final Kill path is logged explicitly and should not be the normal shutdown route.
+
+======================================================================
+3. VALIDATED WINDROSE INTERNAL SHUTDOWN
+======================================================================
+
+Testing with Windrose server build `0.10.0.9.32-22d39a16` showed the following sequence
+after CTRL_C_EVENT:
+
+    Engine exit requested (ConsoleCtrl RequestExit)
+    synchronous save backup requested
+    save backup finished successfully
+    Finished sync backups ... Result true
+    RocksDB instance closed
+    Preparing to exit
+    Game engine shut down
+    log file closed
+
+Three consecutive WindowsGSM STOP cycles completed through the native console signal
+without requiring the forced Kill fallback. The same WorldIslandId continued loading.
+
+======================================================================
+4. NON-ZERO WINDOWS EXIT CODE
+======================================================================
+
+On the tested Windrose build, Windows returned:
+
+    -1073741819 (0xC0000005)
+
+after the internal shutdown sequence described above had already completed.
+
+WorldGuard does NOT label this as a normal zero exit. It logs the process exit and a
+non-zero warning. The plugin cannot infer graceful database integrity from the exit code
+alone; administrators should inspect `R5.log` when the exit code is unexpected.
+
+For the tested build, the evidence showed successful synchronous backups, RocksDB closure,
+engine shutdown and log closure before the process ended. No forced Kill was required.
+
+If a future Windrose build returns a different non-zero code, or its `R5.log` does not show
+the expected shutdown sequence, investigate before treating the stop as safe.
+
+======================================================================
+5. LOG LOCATION
+======================================================================
+
+WorldGuard STOP diagnostics are written to:
+
+    <serverfiles>\WindowsGSM_Windrose.log
+
+Windrose engine/database shutdown details are written to:
+
+    <serverfiles>\R5\Saved\Logs\R5.log
+
+and its rotated backup logs.
