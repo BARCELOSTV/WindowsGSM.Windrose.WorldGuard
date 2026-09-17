@@ -1,0 +1,81 @@
+WINDOWSGSM WINDROSE WORLDGUARD v2.4.1
+COMPORTAMENTO DO STOP / DESLIGAMENTO
+
+======================================================================
+1. POR QUE O STOP USA A CONSOLE API DO WINDOWS
+======================================================================
+
+No ambiente testado com WindowsGSM v1.23.1, o Windrose pode executar sem um
+`MainWindowHandle` utilizável. Por isso `CloseMainWindow()` ou CTRL+C baseado em HWND pode
+falhar mesmo quando o servidor está saudável.
+
+O WorldGuard v2.4.1 localiza a pasta serverfiles pelo processo em execução e utiliza a
+Console API nativa do Windows como caminho principal de desligamento gracioso.
+
+======================================================================
+2. ORDEM DE DESLIGAMENTO
+======================================================================
+
+1. Localiza o PID do Windrose.
+2. `AttachConsole(PID)`.
+3. Faz o WindowsGSM ignorar CTRL+C temporariamente.
+4. `GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)`.
+5. Desanexa da console do Windrose.
+6. Aguarda até 20 segundos pelo encerramento do processo.
+7. Tenta `CloseMainWindow()` apenas como fallback de compatibilidade.
+8. Usa `Process.Kill()` somente como fallback FINAL.
+
+O Kill final é registrado explicitamente e não deve ser o caminho normal de STOP.
+
+======================================================================
+3. DESLIGAMENTO INTERNO VALIDADO DO WINDROSE
+======================================================================
+
+Nos testes com a build Windrose `0.10.0.9.32-22d39a16`, após CTRL_C_EVENT o próprio
+Windrose registrou:
+
+    Engine exit requested (ConsoleCtrl RequestExit)
+    solicitação de backup síncrono
+    backup concluído com sucesso
+    Finished sync backups ... Result true
+    fechamento do RocksDB
+    Preparing to exit
+    Game engine shut down
+    log file closed
+
+Três ciclos consecutivos de STOP pelo WindowsGSM concluíram através do sinal da console
+sem precisar do fallback Kill. O mesmo WorldIslandId continuou carregando.
+
+======================================================================
+4. EXIT CODE NÃO ZERO DO WINDOWS
+======================================================================
+
+Na build testada, o Windows retornou:
+
+    -1073741819 (0xC0000005)
+
+após o fluxo interno de desligamento descrito acima já ter sido concluído.
+
+O WorldGuard NÃO classifica isso como exit zero/normal. Ele registra o encerramento e um
+warning de código não zero. O plugin não deve inferir integridade do banco apenas pelo
+ExitCode; se o código for inesperado, verifique `R5.log`.
+
+Nos testes realizados, `R5.log` mostrou backups síncronos concluídos, fechamento do
+RocksDB, shutdown da engine e fechamento do log antes do fim do processo, sem Kill forçado.
+
+Se uma futura build retornar outro código não zero ou não mostrar a sequência esperada em
+`R5.log`, investigue antes de considerar o desligamento seguro.
+
+======================================================================
+5. LOGS
+======================================================================
+
+Diagnóstico do WorldGuard:
+
+    <serverfiles>\WindowsGSM_Windrose.log
+
+Detalhes internos do Windrose:
+
+    <serverfiles>\R5\Saved\Logs\R5.log
+
+além dos logs rotacionados.
