@@ -1,0 +1,142 @@
+WINDOWSGSM WINDROSE WORLDGUARD v2.4.1
+CONNECTION MODES
+
+======================================================================
+1. DEFAULT FOR A NEW / INCOMPLETE CONFIGURATION
+======================================================================
+
+WorldGuard initializes:
+
+    "UseDirectConnection": false
+
+when the field is missing/invalid in a new or incomplete configuration.
+
+This selects Windrose Invite Code / Connection Service / ICE-P2P mode.
+
+Once the field exists, omitting connection-mode parameters PRESERVES its current value.
+Unrelated WindowsGSM edits therefore do not switch the selected networking mode.
+
+======================================================================
+2. PREFERRED PARAMETERS
+======================================================================
+
+Invite Code / Connection Service:
+
+    -wr-connection invite
+
+Direct IP:
+
+    -wr-connection direct
+
+Backward-compatible aliases:
+
+    -wr-direct false
+    -wr-direct true
+
+Behavior when no parameter is supplied:
+
+    existing true  -> remains true
+    existing false -> remains false
+    missing/invalid field -> initialized false
+
+======================================================================
+3. INVITE CODE / CONNECTION SERVICE / ICE-P2P
+======================================================================
+
+UseDirectConnection=false selects the Windrose Connection Service / ICE-P2P path.
+The server registers with the Connection Manager and clients locate it by Invite Code.
+Windrose uses dynamic NAT punch-through/relay networking in this mode.
+
+Region options:
+
+    -wr-region AUTO
+    -wr-region EU
+    -wr-region SEA
+    -wr-region CIS
+
+AUTO leaves the Windrose region setting empty so Windrose can select automatically.
+All players should use the same Connection Service region.
+
+Known Windrose limitation: the official FAQ documents cases where PCs on the same LAN
+cannot use Invite Code successfully. Direct IP is the recommended workaround for that
+same-network scenario.
+
+======================================================================
+4. DIRECT IP
+======================================================================
+
+Enable explicitly:
+
+    -wr-connection direct
+
+WorldGuard sets:
+
+    "UseDirectConnection": true
+
+WindowsGSM Server Port is synchronized to:
+
+    "DirectConnectionServerPort"
+
+The direct port should be reachable through both TCP and UDP.
+
+LAN example:
+
+    192.168.18.100:7777
+
+Internet access may require public-IP reachability and router port forwarding for both
+TCP and UDP.
+
+======================================================================
+5. CAN BOTH METHODS RUN SIMULTANEOUSLY?
+======================================================================
+
+Current official Windrose configuration exposes a single `UseDirectConnection` boolean.
+Official documentation presents Direct IP as an alternative connection method and does
+not document a supported simultaneous dual-mode configuration.
+
+Real testing with Windrose server build:
+
+    0.10.0.9.32-22d39a16
+
+showed:
+
+- Invite Code mode registered successfully with the Connection Manager and accepted
+  real ICE/P2P client connections.
+- Direct IP mode created the direct sockets and accepted a real client connection by
+  IP + port.
+- The same direct-mode session was not discoverable through Invite Code.
+- Returning to Invite Code mode restored Connection Manager discovery.
+
+WorldGuard therefore treats the two as alternative modes. This behavior should not be
+mistaken for a plugin failure.
+
+======================================================================
+6. SERVER PORT / QUERY PORT
+======================================================================
+
+WindowsGSM Server Port is always stored in `DirectConnectionServerPort`, even while
+Invite Code mode is active. Storing the value does not enable Direct IP by itself.
+
+WindowsGSM Query Port is intentionally not mapped. Current Windrose
+`ServerDescription.json` does not expose a traditional Query/A2S port field.
+
+======================================================================
+7. IP / BIND ADDRESS
+======================================================================
+
+WindowsGSM Server IP synchronizes to:
+
+    P2pProxyAddress
+
+`DirectConnectionProxyAddress` is not overwritten automatically. To explicitly set the
+plugin's direct bind/proxy address, use:
+
+    -wr-bind 0.0.0.0
+
+======================================================================
+8. ADMIN / RCON
+======================================================================
+
+Admin / RCON: The official Windrose Dedicated Server, in its currently documented
+version, does not provide a documented native administrator or RCON configuration.
+Features of this type require third-party tools or mods.
