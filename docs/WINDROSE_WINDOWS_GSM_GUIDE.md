@@ -1,16 +1,16 @@
 # WindowsGSM Windrose WorldGuard — Complete Guide
 
 **Plugin:** `WindowsGSM.Windrose.WorldGuard`  
-**Version:** `2.4.0`  
+**Version:** `2.4.1`  
 **Game:** Windrose  
 **Dedicated Server Steam AppID:** `4129620`  
 **Platform:** Windows
 
-## Purpose
+## 1. Purpose
 
-WorldGuard manages a Windrose Dedicated Server through WindowsGSM while protecting the persistent identity of the active world. Its main goal is to prevent normal restarts, configuration changes, updates, or incomplete first-start metadata from causing Windrose to initialize an unintended replacement world.
+WorldGuard manages a Windrose Dedicated Server through WindowsGSM while protecting the persistent identity of the active world. It is designed to prevent normal restarts, configuration changes, updates, migration mistakes, or incomplete first-start metadata from causing an unintended replacement world.
 
-The protected identity includes:
+Protected identity:
 
 ```text
 PersistentServerId
@@ -20,19 +20,21 @@ WorldDescription.json -> islandId
 Worlds\<WORLD_ID>\
 ```
 
-WorldGuard stores its own locked identity in:
+Runtime identity lock:
 
 ```text
-<WindowsGSM>\servers\<SERVER_ID>\serverfiles\WindowsGSM_Windrose_State.json
+<serverfiles>\WindowsGSM_Windrose_State.json
 ```
 
-and writes diagnostics to:
+Diagnostics:
 
 ```text
-<WindowsGSM>\servers\<SERVER_ID>\serverfiles\WindowsGSM_Windrose.log
+<serverfiles>\WindowsGSM_Windrose.log
 ```
 
-## Plugin installation
+If identity is inconsistent or ambiguous, WorldGuard blocks startup instead of guessing.
+
+## 2. Installation / update
 
 Copy the complete `Windrose.cs` directory into:
 
@@ -40,7 +42,7 @@ Copy the complete `Windrose.cs` directory into:
 <WindowsGSM>\plugins\
 ```
 
-The resulting structure must be:
+Expected layout:
 
 ```text
 <WindowsGSM>\plugins\Windrose.cs\Windrose.cs
@@ -48,69 +50,67 @@ The resulting structure must be:
 <WindowsGSM>\plugins\Windrose.cs\author.png
 ```
 
-Restart WindowsGSM or reload plugins after copying the files.
+Restart WindowsGSM or reload plugins.
 
-## Installing a new Windrose server
-
-The plugin installs/updates the official dedicated server through SteamCMD using:
-
-```text
-login anonymous
-app_update 4129620
-```
-
-The main server executable used by the plugin is:
+The plugin installs/updates the official dedicated server through SteamCMD using AppID `4129620` and starts:
 
 ```text
 R5\Binaries\Win64\WindroseServer-Win64-Shipping.exe
 ```
 
-A typical WindowsGSM instance is located under:
+## 3. First clean launch
 
-```text
-<WindowsGSM>\servers\<SERVER_ID>\serverfiles\
-```
+A truly new server may have no `ServerDescription.json`, world, or WorldGuard state. WorldGuard allows this first bootstrap so Windrose can create its identity/world.
 
-Important Windrose paths include:
+If exactly one valid active world exists afterward and identity is unambiguous, WorldGuard can adopt and lock it. If multiple worlds exist with no authoritative selection, startup is blocked.
 
-```text
-R5\ServerDescription.json
-R5\Saved\SaveProfiles\Default\RocksDB_v2\
-R5\Saved\SaveProfiles\Default\RocksDB\
-R5WorldDescriptionUpdater.exe
-```
+For a new/incomplete connection configuration, `UseDirectConnection` is initialized to `false` (Invite Code / Connection Service mode).
 
-## First clean launch
-
-A truly new server may initially have no `ServerDescription.json`, no world, and no WorldGuard state file. WorldGuard allows that clean bootstrap so Windrose can create the first server identity and world.
-
-Some Windrose builds may create the physical first world before fully persisting `WorldIslandId`. If exactly one valid active world exists and there is no conflicting locked identity, WorldGuard can safely adopt that world and write its ID back into the server configuration.
-
-If multiple worlds exist and the identity is ambiguous, WorldGuard blocks startup rather than guessing.
-
-## WindowsGSM configuration fields
+## 4. WindowsGSM field mapping
 
 ### Server Name
 
-Synchronizes with:
-
 ```text
-ServerDescription.json
-└── ServerDescription_Persistent
-    └── ServerName
+WindowsGSM Server Name -> ServerDescription_Persistent.ServerName
 ```
 
-### Max Players
-
-Synchronizes with:
+### Server IP Address
 
 ```text
-MaxPlayerCount
+WindowsGSM Server IP -> P2pProxyAddress
 ```
+
+The value is validated as an IP address before being applied.
+
+### Server Port
+
+```text
+WindowsGSM Server Port -> DirectConnectionServerPort
+```
+
+The value is stored whether Direct IP is currently enabled or not. This does not enable Direct IP by itself.
+
+For Direct IP, the selected port should be reachable in both TCP and UDP.
+
+### Server Query Port
+
+Not mapped. Current Windrose `ServerDescription.json` does not expose a traditional Query/A2S port field.
+
+### Server Maxplayer
+
+```text
+WindowsGSM Server Maxplayer -> MaxPlayerCount
+```
+
+WorldGuard validates the configured player count before writing it.
 
 ### Server Start Map
 
-This field is used as the **friendly Windrose world name** only.
+Used only as the friendly Windrose world name:
+
+```text
+WindowsGSM Server Start Map -> WorldDescription.WorldName
+```
 
 Example:
 
@@ -118,15 +118,13 @@ Example:
 Server Start Map = DELTA
 ```
 
-synchronizes:
+becomes:
 
 ```json
 "WorldName": "DELTA"
 ```
 
-inside the active `WorldDescription.json`.
-
-Changing this field does **not** change:
+It never changes:
 
 ```text
 WorldIslandId
@@ -136,66 +134,66 @@ InviteCode
 Worlds\<WORLD_ID>\ directory name
 ```
 
-Therefore, renaming the map/world in WindowsGSM keeps the same physical save and world identity.
+On `RocksDB_v2`, the plugin backs up `WorldDescription.json`, edits the friendly name and runs `R5WorldDescriptionUpdater.exe`. If the updater fails, startup is blocked and rollback is attempted.
 
-On current `RocksDB_v2` worlds, the plugin runs `R5WorldDescriptionUpdater.exe` after changing `WorldName` so the edit is applied to the database. A backup of `WorldDescription.json` is created before the change. If the updater fails, startup is blocked and the plugin attempts a rollback.
+### Server GSLT
 
-### Server Port
+Ignored. Current Windrose dedicated-server configuration does not use Steam GSLT.
 
-When Direct Connection is enabled, the WindowsGSM Server Port is synchronized to:
+## 5. Password
 
-```text
-DirectConnectionServerPort
-```
-
-The selected direct-connection port should be available for both TCP and UDP.
-
-Changing the port does not change the world identity or save.
-
-### Query Port
-
-Windrose does not use a traditional A2S query protocol through this plugin. The WindowsGSM Query Port field does not select or identify the world.
-
-### Server IP Address
-
-Changing the WindowsGSM IP address may affect networking, binding, firewall rules, routing, or port forwarding, but it does not change `WorldIslandId`, `islandId`, or the save directory.
-
-## Additional Parameters
-
-WorldGuard consumes the following plugin-specific WindowsGSM Additional Parameters:
-
-```text
--password "your password"
--wr-region AUTO|EU|SEA|CIS
--wr-direct true|false
--wr-bind 0.0.0.0
--wr-autorestore true|false
--wr-adopt-world <WORLD_ID>
-```
-
-Example:
-
-```text
--password "MyPassword" -wr-region EU -wr-direct true
-```
-
-### Password
+Explicit password:
 
 ```text
 -password "MyPassword"
 ```
 
-updates `Password` and `IsPasswordProtected` in `ServerDescription.json`.
-
-To remove the password:
+Remove password:
 
 ```text
 -password ""
 ```
 
-### Region
+If `-password` is absent, the existing `Password` value is preserved and `IsPasswordProtected` is normalized to match whether that stored password is empty/non-empty.
 
-Examples:
+If multiple password parameters are present, the last occurrence is used. The actual password is never written to the WorldGuard log.
+
+## 6. Connection modes
+
+Windrose exposes one selector:
+
+```text
+UseDirectConnection=false -> Invite Code / Connection Service / ICE-P2P
+UseDirectConnection=true  -> Direct IP
+```
+
+Preferred explicit options:
+
+```text
+-wr-connection invite
+-wr-connection direct
+```
+
+Backward-compatible aliases:
+
+```text
+-wr-direct false
+-wr-direct true
+```
+
+### Preservation rule
+
+If neither parameter is supplied and `UseDirectConnection` already exists as a valid boolean, WorldGuard leaves it unchanged.
+
+Therefore changing Server Name, IP, Port, Max Players or WorldName does not switch the networking mode.
+
+Only a missing/invalid connection field is initialized to `false`.
+
+### Invite Code / ICE-P2P
+
+With `UseDirectConnection=false`, Windrose uses its Connection Service/ICE-P2P flow. The server registers with the Connection Manager and clients locate it by Invite Code.
+
+Region controls:
 
 ```text
 -wr-region AUTO
@@ -204,53 +202,70 @@ Examples:
 -wr-region CIS
 ```
 
-### Direct Connection
+The official Windrose FAQ documents a same-LAN Invite Code limitation; Direct IP is the practical workaround for that scenario.
 
-Enable:
+### Direct IP
 
-```text
--wr-direct true
-```
-
-Disable:
+Use:
 
 ```text
--wr-direct false
+-wr-connection direct
 ```
 
-Optional bind/proxy address:
+Connect using:
+
+```text
+<IP>:<Server Port>
+```
+
+The port should be reachable in TCP and UDP.
+
+### Simultaneous modes
+
+The official configuration exposes one `UseDirectConnection` boolean and official documentation presents Direct IP as an alternative connection method rather than a documented simultaneous dual-mode setup.
+
+In real tests on Windrose build `0.10.0.9.32-22d39a16`:
+
+- Invite mode registered successfully with the Connection Manager and accepted a real ICE/P2P client connection.
+- Direct mode created direct sockets and accepted a real client connection by IP + port.
+- The direct-mode session was not discoverable through Invite Code.
+- Returning to Invite mode restored Connection Manager discovery.
+
+This behavior should not be interpreted as a WorldGuard failure.
+
+See `CONNECTION_MODES_EN.txt` / `CONNECTION_MODES_PT-BR.txt` for more detail.
+
+## 7. Other parameters
+
+Optional direct bind/proxy address:
 
 ```text
 -wr-bind 0.0.0.0
 ```
 
-### Automatic broken-save recovery
+Broken-save recovery field:
 
 ```text
--wr-autorestore true
+-wr-autorestore true|false
 ```
 
-controls `AutoLoadLatestBackupIfHasBroken` when that field exists in the Windrose configuration schema.
-
-### Intentional world switch
-
-To intentionally adopt another **existing** world:
+Intentional switch to another already-existing world:
 
 ```text
 -wr-adopt-world <WORLD_ID>
 ```
 
-WorldGuard verifies that the requested world exists before changing the lock. Remove this parameter after a successful switch.
+WorldGuard verifies that the requested world exists before changing the lock. Remove `-wr-adopt-world` after the intentional switch succeeds.
 
-## ServerDescription.json
+## 8. ServerDescription.json
 
 Location:
 
 ```text
-<WindowsGSM>\servers\<SERVER_ID>\serverfiles\R5\ServerDescription.json
+<serverfiles>\R5\ServerDescription.json
 ```
 
-Critical persistent fields include:
+Critical persistent fields:
 
 ```text
 PersistentServerId
@@ -258,45 +273,43 @@ InviteCode
 WorldIslandId
 ```
 
-WorldGuard patches normal administrator-facing fields without intentionally replacing those persistent identity values. Unknown/new JSON fields are preserved because the plugin modifies the existing object instead of rebuilding the file from a fixed schema.
+WorldGuard patches administrator-facing values in the existing JSON object, preserving unknown/new fields instead of rebuilding the file from a rigid schema.
 
-Do not casually edit the identity fields manually.
+Do not casually edit identity fields manually.
 
-## Save locations
+## 9. Save locations
 
-Current active database:
+Current database:
 
 ```text
 R5\Saved\SaveProfiles\Default\RocksDB_v2\
 ```
 
-Legacy active database:
+Legacy database:
 
 ```text
 R5\Saved\SaveProfiles\Default\RocksDB\
 ```
 
-Typical world path:
+Typical world:
 
 ```text
 <DB_ROOT>\<GAME_VERSION>\Worlds\<WORLD_ID>\WorldDescription.json
 ```
 
-WorldGuard automatically considers active worlds from `RocksDB_v2` first and then legacy `RocksDB`.
+WorldGuard searches current `RocksDB_v2` first and then legacy `RocksDB`. Backup directories such as `RocksDB_v2_Backups` are deliberately excluded from automatic active-world selection.
 
-Backup directories such as `RocksDB_v2_Backups` are deliberately not treated as active-world candidates. Restore a backup into the proper live database structure before attempting to use it as the active world.
+## 10. WorldDescription identity
 
-## WorldDescription.json identity
-
-Current Windrose files use the key:
+Current Windrose uses:
 
 ```json
 "islandId": "<WORLD_ID>"
 ```
 
-WorldGuard reads lowercase `islandId` first and retains a compatibility fallback for `IslandId`.
+WorldGuard reads lowercase `islandId` first and keeps a compatibility fallback for `IslandId`.
 
-The following should agree:
+These should agree:
 
 ```text
 ServerDescription.json -> WorldIslandId
@@ -304,11 +317,11 @@ WorldDescription.json -> islandId
 Worlds\<WORLD_ID>\ directory name
 ```
 
-If a genuinely empty `islandId` is discovered in an otherwise unambiguous valid world, WorldGuard can repair it from the physical world directory name. On `RocksDB_v2`, the official updater is then executed to apply the edit.
+A genuinely empty `islandId` can be repaired from the folder name only when the identity is already unambiguous. On `RocksDB_v2`, the updater is then executed.
 
-## R5WorldDescriptionUpdater.exe
+## 11. R5WorldDescriptionUpdater.exe
 
-The plugin searches for the updater in known locations including:
+WorldGuard searches known locations including:
 
 ```text
 <serverfiles>\R5WorldDescriptionUpdater.exe
@@ -316,16 +329,46 @@ The plugin searches for the updater in known locations including:
 <serverfiles>\R5\Binaries\Win64\R5WorldDescriptionUpdater.exe
 ```
 
-For modern `RocksDB_v2` worlds, plugin-owned changes to `WorldDescription.json` are applied through this executable. If it is missing when required, run a SteamCMD Update/Validate and try again.
+If an updater-required edit cannot be applied safely, startup is blocked rather than continuing with a half-applied database change.
 
-## Migrating an existing/legacy dedicated server
+## 12. Safe STOP / shutdown
 
-For the full step-by-step procedures see:
+WindowsGSM `v1.23.1` may launch Windrose without a usable `MainWindowHandle`. WorldGuard v2.4.1 therefore uses the native Windows Console API as the primary STOP mechanism:
 
-- [English legacy migration guide](WINDROSE_LEGACY_MIGRATION_GUIDE_EN.txt)
-- [Português do Brasil](WINDROSE_LEGACY_MIGRATION_GUIDE_PT-BR.txt)
+```text
+AttachConsole(PID)
+-> ignore CTRL+C in WindowsGSM sender
+-> GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)
+-> detach
+-> wait up to 20 seconds
+-> CloseMainWindow compatibility fallback
+-> Process.Kill() FINAL fallback only
+```
 
-At minimum, preserve and migrate:
+Testing with Windrose build `0.10.0.9.32-22d39a16` confirmed that the console signal causes Windrose to request `ConsoleCtrl RequestExit`, perform synchronous backups, close RocksDB, shut down its engine and close the log. Three consecutive WindowsGSM STOP cycles completed without the forced Kill fallback.
+
+### Tested non-zero process exit
+
+The tested build returned:
+
+```text
+-1073741819 (0xC0000005)
+```
+
+after the internal shutdown sequence had completed. WorldGuard now logs this accurately as a non-zero process exit warning; it does not call it a normal zero exit.
+
+A non-zero code alone is not proof of database integrity. If seen on another Windrose build, review `R5.log` for backup completion, RocksDB closure, engine shutdown and log closure.
+
+See `STOP_BEHAVIOR_EN.txt` / `STOP_BEHAVIOR_PT-BR.txt`.
+
+## 13. Legacy migration
+
+Full guides:
+
+- `WINDROSE_LEGACY_MIGRATION_GUIDE_EN.txt`
+- `WINDROSE_LEGACY_MIGRATION_GUIDE_PT-BR.txt`
+
+At minimum preserve:
 
 ```text
 R5\ServerDescription.json
@@ -334,88 +377,111 @@ R5\Saved\
 
 Recommended procedure:
 
-1. Stop the old Windrose server completely.
-2. Stop the new WindowsGSM Windrose instance.
+1. Stop the old server completely.
+2. Stop the WindowsGSM Windrose instance.
 3. Verify no Windrose server process is running.
-4. Back up the entire old server.
-5. Install the dedicated server through WindowsGSM, but do not bootstrap a replacement world when preserving an existing server.
-6. Copy the old `R5\Saved\` into the WindowsGSM server's `R5\Saved\`.
-7. Copy the original `R5\ServerDescription.json` into the WindowsGSM server.
-8. If the WindowsGSM instance previously belonged to a different server identity, remove only the old `WindowsGSM_Windrose_State.json` as part of the deliberate migration.
+4. Back up the old server.
+5. Install Windrose through WindowsGSM without bootstrapping a replacement world.
+6. Copy the old `R5\Saved\` into the WindowsGSM server.
+7. Copy the original `R5\ServerDescription.json`.
+8. If this WindowsGSM instance belonged to another server identity, remove only its old `WindowsGSM_Windrose_State.json` as part of the deliberate migration.
 9. Start through WindowsGSM.
-10. Verify the expected world and player progress.
+10. Verify the expected world/progress.
 11. Stop and start again to confirm persistence.
 
-## WorldGuard runtime files
+## 14. Runtime files / backups
 
-State file:
-
-```text
-<SERVER_ROOT>\WindowsGSM_Windrose_State.json
-```
-
-Log:
+WorldGuard state:
 
 ```text
-<SERVER_ROOT>\WindowsGSM_Windrose.log
+<serverfiles>\WindowsGSM_Windrose_State.json
 ```
 
-Small identity/configuration backups:
+Plugin log:
 
 ```text
-<SERVER_ROOT>\WindowsGSM_Windrose_Backups\
+<serverfiles>\WindowsGSM_Windrose.log
 ```
 
-These backups may include copies of `ServerDescription.json`, the WorldGuard state, and `WorldDescription.json`. They do not replace a full backup of `R5\Saved\`.
+Identity/configuration backups:
 
-## Troubleshooting
+```text
+<serverfiles>\WindowsGSM_Windrose_Backups\
+```
 
-### Configured WorldIslandId not found
+These are not a replacement for a full backup of `R5\Saved\`.
 
-Do not repeatedly start Windrose manually. Check that the world exists in an active `RocksDB_v2` or `RocksDB` directory and that the configuration points to the correct World ID.
+## 15. Troubleshooting
 
-### WorldIslandId is empty
+### WorldIslandId empty / missing
 
-If a clean first bootstrap has created exactly one valid world, WorldGuard can adopt it. If multiple worlds exist, use an explicit `-wr-adopt-world <WORLD_ID>` rather than guessing.
+A clean first bootstrap with exactly one valid world can be adopted safely. If multiple worlds exist, use an explicit `-wr-adopt-world <WORLD_ID>` rather than guessing.
+
+### Configured world not found
+
+Check active `RocksDB_v2` / `RocksDB` locations and verify the configured World ID. Do not repeatedly start Windrose manually while identity is unresolved.
 
 ### islandId mismatch
 
-The physical world directory and `WorldDescription.json -> islandId` should match. WorldGuard blocks startup on a conflicting non-empty identity.
+The physical world folder and `WorldDescription.json -> islandId` should match. A conflicting non-empty identity blocks startup.
 
-### PersistentServerId changed
+### Password unexpectedly disabled
 
-Treat this as a server identity mismatch. Compare the current `ServerDescription.json`, the WorldGuard state, and backups before modifying or deleting anything.
+Check whether the stored `Password` is empty and whether `-password ""` was explicitly supplied. Without a password parameter, WorldGuard preserves the stored password and normalizes `IsPasswordProtected`.
 
-### R5WorldDescriptionUpdater.exe missing/fails
+### Direct IP unexpectedly changed back to Invite mode
 
-Run SteamCMD Update/Validate and verify the updater is present. WorldGuard blocks unsafe `RocksDB_v2` edits rather than continuing with a potentially half-applied change.
+Version 2.4.1 preserves an existing `UseDirectConnection` value when no connection parameter is present. Check `WindowsGSM_Windrose.log` for the effective mode and remove any unintended `-wr-connection` / `-wr-direct` override.
 
-### World name change fails
+### Invite Code does not work while Direct IP is enabled
 
-Check `WindowsGSM_Windrose.log`. The plugin backs up `WorldDescription.json`, attempts to apply `WorldName`, and blocks the server if the required database update cannot be completed safely.
+Current Windrose configuration treats `UseDirectConnection` as a mode selector; simultaneous dual-mode operation is not documented. Switch explicitly to:
 
-## Safety rules
+```text
+-wr-connection invite
+```
 
-- Stop the server before manually copying or editing save data.
+or set/preserve `UseDirectConnection=false`.
+
+### STOP returns 0xC0000005 on tested Windrose build
+
+Review `R5.log`. On tested build `0.10.0.9.32-22d39a16`, the code occurred after successful synchronous backups, RocksDB closure, engine shutdown and log closure. WorldGuard logs a warning instead of treating the non-zero code as a normal zero exit.
+
+### STOP uses forced Kill fallback
+
+Inspect `WindowsGSM_Windrose.log`. A healthy tested v2.4.1 setup successfully attached to the Windrose console and sent `CTRL_C_EVENT`. If AttachConsole fails or Windrose does not exit within the timeout, investigate permissions/process topology before assuming the forced fallback is safe.
+
+### R5WorldDescriptionUpdater missing/fails
+
+Run SteamCMD Update/Validate and verify the updater is present. WorldGuard blocks updater-required changes when they cannot be applied safely.
+
+## 16. Admin / RCON
+
+**Admin / RCON:** The official Windrose Dedicated Server, in its currently documented version, does not provide a documented native administrator or RCON configuration. Features of this type require third-party tools or mods.
+
+## 17. Safety rules
+
+- Stop the server before manually copying/editing save data.
 - Keep full backups of `R5\Saved\` and `R5\ServerDescription.json`.
-- Do not rename `Worlds\<WORLD_ID>` directories without a deliberate migration plan.
+- Do not rename `Worlds\<WORLD_ID>` directories without a migration plan.
 - Do not casually modify `PersistentServerId`, `WorldIslandId`, or `islandId`.
 - Do not run multiple server processes against the same save database.
 - Do not delete WorldGuard state just to bypass an identity error.
 
-## Update workflow
+## 18. Tested environment
 
-Before a major Windrose update:
+Validation for v2.4.1 included:
 
-1. Stop the server.
-2. Back up `R5\Saved\`, `R5\ServerDescription.json`, and `WindowsGSM_Windrose_State.json`.
-3. Use WindowsGSM Update/Validate.
-4. Start through WindowsGSM.
-5. Verify that WorldGuard loads the same locked world.
+```text
+WindowsGSM: v1.23.1
+Windrose Dedicated Server build: 0.10.0.9.32-22d39a16
+```
 
-Windrose is an actively developed game, so major server/save-format changes should be checked against current Windrose dedicated-server documentation before manual database changes.
+Validated behaviors included clean bootstrap, repeated restarts, world identity persistence, Max Players changes, password persistence/normalization, friendly WorldName synchronization, Server IP/Port synchronization, Invite Code/ICE-P2P connection, Direct IP connection, connection-mode preservation, mode switching, and repeated native-console STOP cycles.
 
-## Author
+Windrose is actively developed. Future server/save/network behavior may change, so major Windrose updates should be checked against current dedicated-server documentation.
+
+## 19. Author
 
 **BARCELOSTV / Luiz Augusto Barcelos**
 
@@ -423,6 +489,6 @@ Windrose is an actively developed game, so major server/save-format changes shou
 - Twitch: https://www.twitch.tv/barcelostv
 - Steam: https://steamcommunity.com/id/BARCELOSTV/
 
-## License
+## 20. License
 
-The plugin source and documentation are distributed under the MIT License included in the repository. Third-party names, trademarks, logos, game assets, and proprietary software remain the property of their respective owners.
+The plugin source/documentation are distributed under the MIT License included in the repository. Third-party names, trademarks, logos, game assets, and proprietary software remain the property of their respective owners.
